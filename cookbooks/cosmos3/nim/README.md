@@ -82,6 +82,7 @@ See [Deploy the NIM](deployment.md#advanced-profile-controls).
 | Inverse dynamics | Generator | Video | Video + predicted action | [Action](action.md#inverse-dynamics) |
 | Video Transfer | Generator | Prompt + spatial control | Controlled MP4 video | [Transfer](transfer.md) |
 | Image/video reasoning | Reasoner | Media + text | Text or structured result | [Reasoning](reasoning.md) |
+| Streaming video reasoning | Reasoner | Sequential image frames | Per-frame text with retained context | [Streaming](streaming.md) |
 | Responses API | Reasoner | Responses input | Response object/text | [Reasoning](reasoning.md#use-the-responses-api) |
 
 The public Generator request model does not expose image-to-image or sound
@@ -167,6 +168,7 @@ pages and examples as their source of truth and default to read-only assistance.
 - [API reference](api-reference.md)
 - [Generation](generation.md)
 - [Reasoning](reasoning.md)
+- [Streaming video](streaming.md)
 - [Action](action.md)
 - [Transfer](transfer.md)
 - [Python examples](examples/)

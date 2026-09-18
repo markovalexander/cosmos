@@ -10,6 +10,11 @@ model; `/v1/infer` is a Generator endpoint and is not used here.
 See [Deployment](deployment.md) to select and launch a Reasoner model. This
 page covers Reasoner routes, media, sampling, and responses.
 
+For stateful reasoning over successive video frames, see
+[Streaming video](streaming.md). Its [example client](streaming.md#example-client)
+is bundled in this cookbook and uses the same pinned environment and `NIM_URL`
+setting, with a flag to choose WebSocket or REST.
+
 ## Prepare the client and verify readiness
 
 Install the [client tooling](prerequisites.md#client-tooling). Then, from the

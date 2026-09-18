@@ -44,6 +44,35 @@ def require_runtime(
     return metadata
 
 
+def require_streaming(nim_url: str) -> dict:
+    """Check readiness, the Reasoner profile, and streaming before sending media."""
+    ready = requests.get(f"{nim_url}/v1/health/ready", timeout=30)
+    ready.raise_for_status()
+    metadata = require_runtime(
+        nim_url,
+        expected_runtime="reasoner",
+        expected_endpoint="/v1/chat/completions",
+    )
+    profile_id = metadata.get("selectedModelProfileId")
+    if not isinstance(profile_id, str) or not profile_id:
+        raise RuntimeError("Verify the selected Reasoner profile before streaming.")
+    response = requests.get(f"{nim_url}/v1/streaming/config", timeout=30)
+    if response.status_code in (404, 501):
+        raise RuntimeError(
+            "Streaming is unavailable. Start a streaming-capable Reasoner image "
+            "with NIM_ENABLE_STREAMING=true, or update NIM_URL."
+        )
+    response.raise_for_status()
+    config = response.json()
+    if (
+        not isinstance(config, dict)
+        or not isinstance(config.get("model"), str)
+        or not config["model"]
+    ):
+        raise ValueError("/v1/streaming/config must identify the served model")
+    return config
+
+
 def require_generator_profile(
     nim_url: str,
     *,

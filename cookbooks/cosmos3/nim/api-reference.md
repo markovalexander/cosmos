@@ -22,6 +22,7 @@ Reasoner completion APIs, and a Reasoner profile does not serve `/v1/infer`.
 | Generator | `POST /v1/infer` with `transfer` | [Transfer](transfer.md) |
 | Reasoner | `POST /v1/chat/completions` | [Reasoning](reasoning.md) |
 | Reasoner | `POST /v1/responses` and optional state routes | [Reasoning](reasoning.md#use-the-responses-api) |
+| Reasoner (streaming enabled) | WebSocket `/v1/streaming/ws` and REST `/v1/streaming/*` | [Streaming endpoints](streaming.md#endpoints) |
 
 Reasoner Chat Completions supports media, parsed-reasoning controls, developer
 instructions, and OpenAI tool calls as described in

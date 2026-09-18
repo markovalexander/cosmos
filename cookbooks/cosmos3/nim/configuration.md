@@ -214,6 +214,57 @@ throughput. Leave Reasoner GPU-memory headroom at its default unless system
 measurements establish another safe reserve; reducing it increases startup and
 runtime OOM risk.
 
+### Streaming video sessions
+
+Set `NIM_MODEL_TYPE=reasoner` and `NIM_ENABLE_STREAMING=true` to enable the
+WebSocket and REST session APIs. Changing these settings requires restarting
+the service with the new environment. Ordinary Chat Completions token streaming
+uses the request field `stream=true` and does not require this enable flag.
+
+| Name | Default | Use |
+| --- | --- | --- |
+| `NIM_ENABLE_STREAMING` | `false` | Enable stateful video-frame sessions and apply the required engine settings |
+| `NIM_STREAMING_MAX_SESSIONS` | `2` | Maximum concurrent sessions shared by WebSocket and REST; integer, minimum 1 |
+| `NIM_STREAMING_MAX_VIDEO_SEGMENTS` | `8` | Default retained frame window per session; integer, minimum 1 |
+| `NIM_STREAMING_IDLE_TIMEOUT_S` | `900` | Idle timeout for WebSocket sessions, in seconds; must be greater than 0 |
+| `NIM_STREAMING_REST_IDLE_TIMEOUT_S` | `120` | Idle timeout for REST sessions, in seconds; must be greater than 0 |
+
+Streaming forces the multimodal processor cache off and disables asynchronous
+scheduling. It raises the engine's image budget to at least
+`2 × NIM_STREAMING_MAX_SESSIONS × NIM_STREAMING_MAX_VIDEO_SEGMENTS`, or 32 image
+slots with the defaults. This floor can override a lower
+`NIM_MAX_IMAGES_PER_PROMPT`. Increasing either streaming limit increases
+encoder-cache memory requirements; reduce the limits if startup lacks memory
+and validate representative requests before increasing concurrency. These
+engine changes also affect ordinary requests on the same container.
+
+Accepted frames refresh session activity; a frame in flight is not reaped.
+WebSocket disconnects release the session, while REST clients should explicitly
+delete it rather than rely on the shorter idle timeout. Increase the relevant
+timeout for feeds with long pauses. Per-session `retention` and `sampling`
+belong in the creation request; retention overrides remain subject to shared
+capacity and model-context admission checks.
+
+#### Advanced streaming controls
+
+Leave these at their defaults unless diagnosing or tuning a measured workload:
+
+| Name | Default | Use |
+| --- | --- | --- |
+| `NIM_STREAMING_SPEC_METHOD` | `ngram` | Replace configured DFlash speculation with GPU n-gram speculation; `none` disables speculation. The `dflash` override is for diagnostics only and is unsupported for streaming |
+| `NIM_STREAMING_SPEC_NUM_TOKENS` | `3` | Number of proposed tokens for the n-gram replacement; values below 1 become 1, and non-integer values fall back to 3 |
+| `NIM_STREAMING_FORCE_V1_RUNNER` | Unset | Set `1` to force the vLLM V1 model runner; otherwise leave runner selection to vLLM |
+
+The speculation controls apply only when streaming is enabled and the engine
+has a DFlash speculative configuration. They do not independently enable
+speculation when `NIM_USE_DFLASH=false`. N-gram replaces DFlash because DFlash
+is currently not supported for streaming. Both V1 and V2 model runners support the
+streaming path, so pinning V1 is not required for normal operation.
+
+Inspect `GET /v1/streaming/config` for the served model and default retention
+and sampling policy. See [Streaming](streaming.md) for session requests,
+the example client, and error handling.
+
 ### API behavior
 
 | Name | Default | Use |
