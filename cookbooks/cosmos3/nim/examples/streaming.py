@@ -165,17 +165,13 @@ def run_rest(args: argparse.Namespace, create: dict) -> int:
         try:
             print(f"session {created['session_id']} on {created['model']}\n")
             for payload in iter_frames(args.video, args.fps, args.max_frames, args.loop):
-                if args.frame_format == "binary":
-                    response = client.post(
-                        f"{session_url}/frame", data=payload,
-                        headers={"Content-Type": "image/jpeg"}, timeout=1800,
-                    )
-                else:
-                    response = client.post(
-                        f"{session_url}/frame",
-                        json={"image_b64": base64.b64encode(payload).decode("ascii")},
-                        timeout=1800,
-                    )
+                # NIM's HTTP content-type validation rejects raw image bodies
+                # with 415 before they reach the streaming REST handler.
+                response = client.post(
+                    f"{session_url}/frame",
+                    json={"image_b64": base64.b64encode(payload).decode("ascii")},
+                    timeout=1800,
+                )
                 print_frame(rest_result(response), args.quiet)
         finally:
             # HTTP disconnects don't release sessions. Attempt deletion even
@@ -217,7 +213,8 @@ def main() -> int:
         help="Override the server retention window (default: use server setting)",
     )
     parser.add_argument(
-        "--frame-format", choices=("binary", "base64"), default="binary"
+        "--frame-format", choices=("binary", "base64"),
+        help="Frame encoding: WebSocket defaults to binary; REST supports only base64",
     )
     parser.add_argument(
         "--question",
@@ -225,6 +222,14 @@ def main() -> int:
         help="Sent with the first frame only.",
     )
     args = parser.parse_args()
+
+    if args.transport == "rest" and args.frame_format == "binary":
+        parser.error(
+            "REST binary frames are currently rejected with HTTP 415 by NIM. "
+            "Use --frame-format base64 or --transport websocket."
+        )
+    if args.frame_format is None:
+        args.frame_format = "base64" if args.transport == "rest" else "binary"
 
     if not math.isfinite(args.fps) or args.fps <= 0:
         parser.error("--fps must be finite and positive")

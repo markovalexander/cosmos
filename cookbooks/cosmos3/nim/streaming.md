@@ -39,7 +39,7 @@ The default input is the existing Reasoner asset
 uv run python examples/streaming.py --transport websocket --fps 1 --max-frames 30
 ```
 
-Process the same video through the REST session API:
+Process the same video through the REST session API (JSON/base64 by default):
 
 ```bash
 uv run python examples/streaming.py --transport rest --fps 1 --max-frames 30
@@ -65,9 +65,15 @@ Useful options:
 | `--loop` | Repeat the video until `--max-frames` is reached |
 | `--quiet` | Print only every tenth caption |
 
-The client prints per-frame results and does not save artifacts. Both
-transports support `--frame-format binary` (raw JPEG bytes) and `base64`
-(JSON with `image_b64`).
+The client prints per-frame results and does not save artifacts. WebSocket
+supports `--frame-format binary` (the default) and `base64`. REST uses JSON
+with `image_b64` and defaults to `base64`; the client rejects an explicit
+`--transport rest --frame-format binary` before contacting the endpoint.
+
+**REST limitation:** raw image bodies currently fail with HTTP 415
+(`Unsupported media type`) at the NIM HTTP layer, even though the underlying
+streaming REST handler accepts binary images. Use JSON/base64 for REST, or
+WebSocket for binary frames. This does not affect WebSocket binary streaming.
 
 WebSocket disconnects release the session. REST mode attempts to delete it
 after success, an error, or Ctrl+C; it stops on the first error without
@@ -153,16 +159,17 @@ standard library and closes the session even if a frame request fails.
   printf '%s\n' "$created"
 
   for frame in frame1.jpg frame2.jpg; do
-    curl -fsS "$NIM_URL/v1/streaming/sessions/$session_id/frame" \
-      -H 'Content-Type: image/jpeg' \
-      --data-binary "@$frame" | python3 -m json.tool
+    python3 -c 'import base64,json,sys; from pathlib import Path; print(json.dumps({"image_b64":base64.b64encode(Path(sys.argv[1]).read_bytes()).decode("ascii")}))' "$frame" \
+      | curl -fsS "$NIM_URL/v1/streaming/sessions/$session_id/frame" \
+          -H 'Content-Type: application/json' --data-binary @- \
+      | python3 -m json.tool
   done
 )
 ```
 
 Creation returns `session_id`, `model`, `fps`, and the effective `retention`.
-The frame request accepts raw JPEG/PNG bytes; alternatively, send
-`Content-Type: application/json` with `{"image_b64":"<raw base64 image>"}`.
+Send frames with `Content-Type: application/json` and
+`{"image_b64":"<raw base64 image>"}` to avoid the REST binary-body limitation.
 Use raw base64 without a data-URL prefix. Wait for each frame response before
 sending the next. Deletion returns `session_id`, `frames`, and `closed: true`.
 
@@ -343,6 +350,7 @@ status. WebSocket error messages are described [above](#server-messages).
 | `404` | Unknown model or missing/expired session; verify the model or create a new session |
 | `409` | Session busy or no longer usable; serialize REST frame requests, or recreate a dead session |
 | `413` | Frame too large; resize or re-encode before sending |
+| `415` | REST binary body rejected by the NIM HTTP layer; send JSON/base64 or use WebSocket binary frames |
 | `503` | Session slots or shared encoder capacity exhausted; close unused sessions or retry creation after capacity becomes available |
 | `500` | Server-side failure; inspect service logs and readiness before retrying |
 
