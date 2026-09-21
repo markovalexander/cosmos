@@ -9,6 +9,10 @@ use the same Cosmos3 NIM image, with different launch commands. The frontend
 runs the bundled streaming adapter; workers run the NIM server with streaming
 enabled.
 
+> **WebSocket is not supported in Dynamo mode.** The
+> `WS /v1/streaming/ws` endpoint is unavailable on both the shared frontend
+> and worker NIM endpoints. Use the REST session API below.
+
 First complete the [prerequisites](dynamo_deployment.md#prerequisites) and
 [namespace and cache setup](dynamo_deployment.md#prepare-the-namespace-and-cache).
 If reusing a cache, set `claimName` in the streaming YAML to
@@ -64,9 +68,9 @@ handlers attached. Chat Completions use the same
 
 Use the forwarded frontend at `NIM_URL`. Create a session, send one JPEG or
 PNG frame at a time, then delete the session. This Dynamo path supports raw
-image bodies and JSON `image_b64`. It exposes neither WebSocket sessions nor
-`/v1/streaming/config`, so the cookbook's `examples/streaming.py` client cannot
-be used here: its preflight requires that config route.
+image bodies and JSON `image_b64`. The `/v1/streaming/config` route is also
+unavailable, so the cookbook's `examples/streaming.py` client cannot be used
+here, even with `--transport rest`: its preflight requires that config route.
 
 After the readiness checks above, try one local JPEG frame:
 
@@ -105,6 +109,8 @@ Set `ReasonerWorker.replicas` to `<worker-count>` in the streaming YAML and
 apply that file again. Each replica needs the shared
 [resources and cache](dynamo_deployment.md#prerequisites). Scaling down or
 replacing workers loses their active sessions; session state does not migrate.
+Set the count to `0` to release the GPUs while retaining the frontend and cache;
+restore a positive count and wait for readiness before sending more requests.
 
 To stop serving while keeping the cache PVC and secrets:
 

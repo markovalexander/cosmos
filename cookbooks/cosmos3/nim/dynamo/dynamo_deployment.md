@@ -125,6 +125,9 @@ the model or GPU topology also requires matching `NIM_MODEL_VARIANT`,
 `NIM_PRECISION`, `NIM_TAGS_SELECTOR`, and GPU requests/limits to the selected
 image's profile. This example uses fixed replicas; autoscaling is not enabled.
 
+Set the worker count to `0` to release the GPUs while retaining the frontend
+and cache. Restore a positive count and wait for readiness to resume inference.
+
 To stop serving, delete only the graph deployment:
 
 ```bash
