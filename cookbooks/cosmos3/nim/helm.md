@@ -6,3 +6,7 @@ SPDX-License-Identifier: OpenMDW-1.1 -->
 Helm deployment guidance is not included in this cookbook yet. Do not adapt a
 chart or values file from another NIM. Use the documented
 [Docker deployment](deployment.md) for the current Cosmos3 Certified NIM image.
+
+For the experimental Reasoner Dynamo stack, see the
+[Dynamo deployment guides](dynamo/README.md). They provide separate plain YAML
+for regular Dynamo and Dynamo with streaming, and require the Dynamo operator.

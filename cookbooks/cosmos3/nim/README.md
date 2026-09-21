@@ -161,6 +161,8 @@ pages and examples as their source of truth and default to read-only assistance.
 - [Configuration](configuration.md)
 - [Support matrix](support-matrix.md)
 - [Helm deployment status](helm.md)
+- [Dynamo deployment](dynamo/dynamo_deployment.md)
+- [Dynamo with streaming](dynamo/dynamo_with_streaming.md)
 - [Bring your own checkpoint](bring-your-own-checkpoint.md)
 
 ### Use the APIs

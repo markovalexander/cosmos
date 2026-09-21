@@ -1,0 +1,177 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: OpenMDW-1.1
+
+# Fixed-replica configuration from cosmos3/dynamo/helm/cosmos3-dynamo.
+# See dynamo_deployment.md for prerequisites and image access.
+apiVersion: nvidia.com/v1beta1
+kind: DynamoGraphDeployment
+metadata:
+  name: cosmos3-reasoner
+spec:
+  backendFramework: "vllm"
+  components:
+    - name: Frontend
+      type: frontend
+      runtimeVersionOverride: "1.5.0"
+      replicas: 1
+      podTemplate:
+        spec:
+          imagePullSecrets:
+            - name: ngc-registry-secret
+          securityContext:
+            fsGroup: 1000
+            runAsGroup: 1000
+            runAsUser: 1000
+          containers:
+            - name: main
+              image: "nvcr.io/nvidia/ai-dynamo/dynamo-frontend-nightly:20260906-c70f1c7"
+              imagePullPolicy: IfNotPresent
+              command: ["python3", "-m", "dynamo.frontend"]
+              args:
+                - --http-host
+                - 0.0.0.0
+                - --http-port
+                - "8000"
+                - --dyn-chat-processor
+                - dynamo
+                - --router-mode
+                - "round-robin"
+                - --router-session-affinity-ttl-secs
+                - "300"
+              env:
+                - name: DYN_REQUEST_PLANE
+                  value: "tcp"
+              ports:
+                - name: http
+                  containerPort: 8000
+              startupProbe:
+                httpGet:
+                  path: /health
+                  port: http
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 60
+              readinessProbe:
+                httpGet:
+                  path: /health
+                  port: http
+                periodSeconds: 10
+                timeoutSeconds: 3
+                failureThreshold: 3
+              resources:
+                limits:
+                  cpu: "8"
+                  memory: 16Gi
+                requests:
+                  cpu: "4"
+                  memory: 8Gi
+    - name: ReasonerWorker
+      type: decode
+      runtimeVersionOverride: "1.5.0"
+      replicas: 1
+      sharedMemorySize: "64Gi"
+      podTemplate:
+        spec:
+          imagePullSecrets:
+            - name: ngc-registry-secret
+          securityContext:
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+            runAsGroup: 1000
+            runAsUser: 1000
+          containers:
+            - name: main
+              image: "<nim-image-build>"
+              imagePullPolicy: IfNotPresent
+              workingDir: /opt/nim
+              command: ["/bin/bash", "-lc"]
+              args:
+                - |
+                  set -euo pipefail
+                  exec /opt/nim/start_server.sh
+              env:
+                - name: NIM_CACHE_PATH
+                  value: "/opt/nim/.cache"
+                - name: NGC_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: "ngc-api-secret"
+                      key: NGC_API_KEY
+                - name: OUTLINES_CACHE_DIR
+                  value: /tmp/outlines
+                - name: NIM_HTTP_API_PORT
+                  value: "8000"
+                - name: NIM_INFERENCE_PROTOCOL
+                  value: "http"
+                - name: NIM_LOGGING_JSONL
+                  value: "1"
+                - name: NIM_LOG_LEVEL
+                  value: "INFO"
+                - name: NIM_MODEL_TYPE
+                  value: "reasoner"
+                - name: NIM_MODEL_VARIANT
+                  value: "nano"
+                - name: NIM_PRECISION
+                  value: "bf16"
+                - name: NIM_DYNAMO_WORKER
+                  value: "true"
+                - name: NIM_ENABLE_STREAMING
+                  value: "0"
+                - name: NIM_DYNAMO_PROXY_PORT
+                  value: "8080"
+                - name: NIM_DISCOVERY_BACKEND
+                  value: "{\"async_scheduling\":true,\"discovery_backend\":\"kubernetes\",\"enable_multimodal\":true}"
+                - name: DYN_REQUEST_PLANE
+                  value: "tcp"
+                - name: DYN_SELF_HOST_METADATA
+                  value: "true"
+                - name: DYN_SYSTEM_PORT
+                  value: "9090"
+                - name: NIM_TAGS_SELECTOR
+                  value: n_gpus=1,nim_tp=1,nim_dp=1
+                - name: VLLM_EARLY_UUID_LOOKUPS
+                  value: "1"
+                - name: VLLM_UUID_AUTO_DERIVE
+                  value: "1"
+                - name: TQDM_DISABLE
+                  value: "1"
+              ports:
+                - name: nim-http
+                  containerPort: 8000
+                - name: system
+                  containerPort: 9090
+              startupProbe:
+                httpGet:
+                  path: /v1/health/live
+                  port: nim-http
+                periodSeconds: 10
+                timeoutSeconds: 3
+                failureThreshold: 60
+              livenessProbe:
+                httpGet:
+                  path: /v1/health/live
+                  port: nim-http
+                periodSeconds: 10
+                timeoutSeconds: 3
+                failureThreshold: 3
+              resources:
+                limits:
+                  cpu: "16"
+                  memory: 96Gi
+                  nvidia.com/gpu: "1"
+                requests:
+                  cpu: "16"
+                  memory: 96Gi
+                  nvidia.com/gpu: "1"
+              volumeMounts:
+                - name: nim-cache
+                  mountPath: /opt/nim/.cache
+          terminationGracePeriodSeconds: 60
+          tolerations:
+            - effect: NoSchedule
+              key: nvidia.com/gpu
+              operator: Exists
+          volumes:
+            - name: nim-cache
+              persistentVolumeClaim:
+                claimName: nim-model-cache
