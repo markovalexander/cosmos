@@ -86,11 +86,14 @@ curl -fsS "$NIM_URL/v1/models" | python3 -m json.tool
 ```
 
 Before sending requests, confirm `/health` lists a distinct `generate`
-instance for each worker and `/v1/models` is nonempty. Frontend health alone
+instance for each worker in this deployment and `/v1/models` is nonempty.
+`/health` can also list other deployments' workers; match the instance's
+namespace and transport address to your worker pods. Frontend health alone
 does not establish worker readiness. Workers expose NIM's
 `/v1/health/ready`, `/v1/metadata`, and `/v1/metrics` on their own port 8000;
 port-forward a worker pod to a different local port to inspect those endpoints.
-Check each worker's readiness and selected profile there.
+Check each worker's readiness and match `selectedModelProfileId` from metadata
+to `/v1/manifest`, using [inspect_profile.py](../examples/inspect_profile.py).
 
 ## Send a request
 
@@ -107,8 +110,11 @@ curl -fsS "$NIM_URL/v1/chat/completions" \
 
 See [Reasoning](../reasoning.md) for image/video request formats. The frontend
 uses Dynamo's API, including OpenAI `response_format`; NIM-specific aliases
-are handled by the worker's NIM proxy. Cookbook clients that require
-`/v1/metadata` must target a worker's NIM HTTP endpoint, not the frontend.
+are handled by the worker's NIM proxy. The frontend does not expose NIM
+metadata. Some experimental worker images also omit `model_type` and
+`inference_endpoint` from `/v1/metadata`, so cookbook clients requiring those
+fields cannot use them. Use the cURL example above and verify the Reasoner
+profile through `/v1/manifest`.
 
 ## Scale or stop
 
