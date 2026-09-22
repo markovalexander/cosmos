@@ -217,7 +217,8 @@ runtime OOM risk.
 ### Streaming video sessions
 
 Set `NIM_MODEL_TYPE=reasoner` and `NIM_ENABLE_STREAMING=true` to enable the
-WebSocket and REST session APIs. Changing these settings requires restarting
+WebSocket and REST session APIs in standalone NIM. In [Dynamo mode](#dynamo-streaming),
+only REST sessions are supported. Changing these settings requires restarting
 the service with the new environment. Ordinary Chat Completions token streaming
 uses the request field `stream=true` and does not require this enable flag.
 
@@ -261,9 +262,11 @@ speculation when `NIM_USE_DFLASH=false`. N-gram replaces DFlash because DFlash
 is currently not supported for streaming. Both V1 and V2 model runners support the
 streaming path, so pinning V1 is not required for normal operation.
 
-Inspect `GET /v1/streaming/config` for the served model and default retention
+For standalone NIM, inspect `GET /v1/streaming/config` for the served model and default retention
 and sampling policy. See [Streaming](streaming.md) for session requests,
-the example client, and error handling.
+the example client, and error handling. That config route and the example
+client are unavailable in Dynamo mode; use the
+[Dynamo REST examples](dynamo/dynamo_with_streaming.md#stream-video-frames-over-rest).
 
 ### API behavior
 
@@ -272,6 +275,101 @@ the example client, and error handling.
 | `NIM_GUIDED_DECODING_BACKEND` | `xgrammar` | Select the structured-output backend |
 | `NIM_DISABLE_LOG_REQUESTS` | `true` | Keep Reasoner request bodies out of logs |
 | `NIM_DISABLE_RESPONSES_ROUTE` | `false` | Remove Responses routes when set to `true` |
+
+## Dynamo configuration
+
+### Run NIM as a Dynamo worker
+
+Use the available NIM image `<nim-image-build>` and start
+`/opt/nim/start_server.sh` with `NIM_MODEL_TYPE=reasoner` and
+`NIM_DYNAMO_WORKER=true`. Generator profiles do not support Dynamo worker mode.
+The NIM selects and loads the model, launches a Dynamo vLLM worker and a private
+frontend, and exposes the NIM HTTP API. Keep the usual model-selection,
+cache, and authentication settings from [Essential configuration](#essential-configuration).
+The shared frontend is a separate service; it does not need worker enablement
+or a GPU.
+
+| Name | Default | Use |
+| --- | --- | --- |
+| `NIM_DYNAMO_WORKER` | `false` | Launch the Reasoner as a Dynamo worker instead of the standalone Reasoner runtime |
+| `NIM_DISCOVERY_BACKEND` | `file` | Set worker and private-frontend discovery; use `kubernetes` for the supplied Kubernetes deployments. Also accepts the legacy JSON argument object shown below |
+| `NIM_DYNAMO_ASYNC_SCHEDULING` | `true` | Control worker asynchronous scheduling; streaming forces this off |
+| `NIM_DYNAMO_ENABLE_MULTIMODAL` | `true` | Enable Dynamo multimodal handling for image/video requests |
+| `NIM_DYNAMO_ARGS` | Empty object | Advanced Dynamo worker CLI overrides as a JSON object; use underscore keys such as `discovery_backend`, `namespace`, and `endpoint` |
+| `NIM_DYNAMO_PROXY_PORT` | `8080` | Private frontend's loopback HTTP port; integer from 1 through 65535, different from `NIM_HTTP_API_PORT` (default `8000`) |
+| `NIM_DYNAMO_PROXY_REQUEST_TIMEOUT_SECS` | `120` in the NIM image | NIM proxy request timeout in seconds; persistent session operations use the separate streaming timeout below |
+| `NIM_DYNAMO_PROXY_FORWARDED_REQUEST_HEADERS_LIST` | Empty additions | Comma- or whitespace-separated extra request headers to forward through the NIM proxy; built-in tracing, affinity, worker-routing, and tenant headers remain enabled |
+
+Argument precedence is defaults, then `NIM_DISCOVERY_BACKEND` (including its
+legacy JSON fields), then the individual scheduling/multimodal variables, then
+`NIM_DYNAMO_ARGS`. Streaming engine constraints are applied last and cannot be
+overridden by these arguments. The supplied YAML files use the legacy JSON form:
+
+```text
+# Regular Dynamo
+NIM_DISCOVERY_BACKEND={"async_scheduling":true,"discovery_backend":"kubernetes","enable_multimodal":true}
+# Dynamo with REST streaming
+NIM_DISCOVERY_BACKEND={"async_scheduling":false,"discovery_backend":"kubernetes","enable_multimodal":true}
+```
+
+### Dynamo discovery and routing
+
+These are the settings used by the supplied manifests, rather than upstream
+Dynamo defaults. Keep discovery and request transport consistent across the
+shared frontend and workers.
+
+| Setting | Cookbook value | Use |
+| --- | --- | --- |
+| `DYN_REQUEST_PLANE` | `tcp` | Request transport on the shared frontend and workers |
+| `DYN_SELF_HOST_METADATA` | `true` | Let workers serve their discovery metadata |
+| `DYN_SYSTEM_PORT` | `9090` | Worker system/metadata port; separate from the NIM HTTP and private frontend ports |
+| `NIM_INFERENCE_PROTOCOL` | `http` | Serve the worker's NIM API over HTTP |
+| `VLLM_EARLY_UUID_LOOKUPS` | `1` | Enable early multimodal cache lookups by media UUID |
+| `VLLM_UUID_AUTO_DERIVE` | `1` | Derive missing media UUIDs from media URLs for ordinary multimodal requests; streaming still disables the processor cache |
+| Frontend `--http-host`, `--http-port` | `0.0.0.0`, `8000` | Shared frontend's public listener |
+| Frontend `--discovery-backend` | `kubernetes` | Explicit in the streaming manifest; the regular frontend uses operator-provided discovery configuration |
+| Frontend `--dyn-chat-processor` | `dynamo` | Process Chat Completions through Dynamo |
+| Frontend `--router-mode` | `round-robin` | Distribute requests across workers |
+| Frontend `--router-session-affinity-ttl-secs` | `300` | Chat affinity lifetime in seconds; the environment alternative is `DYN_ROUTER_SESSION_AFFINITY_TTL_SECS`. Clients send `x-dynamo-session-id` to use affinity |
+
+In these Kubernetes deployments, let the Dynamo operator supply discovery and
+namespace identity, including `DYN_DISCOVERY_BACKEND`, `DYN_NAMESPACE`,
+`DYN_NAMESPACE_WORKER_SUFFIX`, and `DYN_NAMESPACE_PREFIX`. Do not hardcode its
+rollout-specific namespace values. Advanced manual worker launches can override
+the namespace and endpoint through `NIM_DYNAMO_ARGS`; endpoint resolution also
+honors `DYN_ENDPOINT`.
+
+See [Regular Dynamo deployment](dynamo/dynamo_deployment.md) for the NGC shared
+frontend and complete worker manifest.
+
+### Dynamo streaming
+
+Set `NIM_ENABLE_STREAMING=1` alongside `NIM_DYNAMO_WORKER=true` on workers.
+Use the same `<nim-image-build>` image for the shared frontend, running
+`/opt/nim/.venv/bin/python -m streaming.dynamo.frontend` from `/opt/nim`.
+The stock `python3 -m dynamo.frontend` command does not serve video-session routes.
+The NIM worker selects its private streaming frontend automatically.
+
+| Name | Default | Use |
+| --- | --- | --- |
+| `NIM_DYNAMO_STREAMING_ENDPOINT` | Derived `<namespace>.<component>.streaming`; standalone adapter fallback `dynamo.backend.streaming` | Set the same explicit RPC endpoint on the shared frontend and workers. The YAML uses `cosmos3-reasoner.backend.streaming`; use a distinct endpoint for each model pool |
+| `NIM_DYNAMO_STREAMING_REQUEST_TIMEOUT_S` | `180` | Bound each REST session create, frame, or delete operation, including upload and inference, in seconds; positive finite number. Set on the shared frontend and workers |
+| `DYN_HTTP_HOST`, `DYN_HTTP_PORT` | `0.0.0.0`, `8000` | Streaming adapter listener defaults; explicit `--http-host` and `--http-port` arguments take precedence |
+| `DYN_TLS_CERT_PATH`, `DYN_TLS_KEY_PATH` | Unset | Optional certificate and key paths for TLS on the streaming adapter; set both together, or use `--tls-cert-path` and `--tls-key-path` |
+
+The adapter's `--streaming-endpoint` flag overrides its environment endpoint;
+keep it aligned with the workers. Use aggregated workers with a local encoder;
+disaggregated prefill/decode and remote encoders are unsupported. The
+[streaming capacity, retention, idle-timeout, and engine controls](#streaming-video-sessions)
+also apply. Streaming forces synchronous scheduling and disables the multimodal
+processor cache. The request timeout above is separate from
+`NIM_STREAMING_REST_IDLE_TIMEOUT_S`, which expires inactive sessions. REST session
+ownership does not depend on the Chat Completions affinity TTL.
+
+**WebSocket (`/v1/streaming/ws`) is unsupported in Dynamo mode**, on both shared
+frontend and worker NIM endpoints. `/v1/streaming/config` is also unavailable.
+See [Dynamo with streaming](dynamo/dynamo_with_streaming.md) for the manifest
+and REST request examples.
 
 ## Secret handling
 

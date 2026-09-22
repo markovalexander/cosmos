@@ -32,13 +32,13 @@ to Dynamo without loading a model or requesting a GPU. The stock
 
 Workers start `/opt/nim/start_server.sh`: `NIM_DYNAMO_WORKER=true` and
 `NIM_ENABLE_STREAMING=1` select the streaming worker and its private frontend.
+See [Dynamo worker configuration](../configuration.md#run-nim-as-a-dynamo-worker)
+and [Dynamo streaming configuration](../configuration.md#dynamo-streaming)
+for environment variables, defaults, precedence, and timeouts.
 The source pins Dynamo `1.5.0.dev20260902`; the graph's operator runtime
 override remains `1.5.0`.
 
-Use aggregated workers with a local encoder. Streaming does not support
-disaggregated prefill/decode or remote encoders. Enablement forces synchronous
-scheduling, disables the multimodal processor cache, and adjusts encoder
-capacity. The YAML sets synchronous scheduling explicitly and uses the same
+The YAML sets synchronous scheduling explicitly and uses the same
 `NIM_DYNAMO_STREAMING_ENDPOINT` on frontend and workers. Keep that value
 identical; use a distinct endpoint for each separate model pool.
 

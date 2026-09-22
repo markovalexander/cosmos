@@ -9,6 +9,10 @@ Chat Completions, with round-robin routing and session affinity. It starts
 one Nano BF16 worker on one GPU, with persistent video sessions disabled.
 For those sessions, use [Dynamo with streaming](dynamo_with_streaming.md).
 
+For required worker environment variables, discovery, ports, and routing,
+see [Dynamo configuration](../configuration.md#dynamo-configuration), including
+[running NIM as a Dynamo worker](../configuration.md#run-nim-as-a-dynamo-worker).
+
 The plain YAML follows `cosmos3/dynamo/helm/cosmos3-dynamo` in
 `cosmos-genai-nim`. Helm is not needed; the Dynamo operator is still required.
 Replace values in `<angle-brackets>` with your own values before applying.
