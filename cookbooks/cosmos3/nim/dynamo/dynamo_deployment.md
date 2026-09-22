@@ -9,7 +9,7 @@ Chat Completions, with round-robin routing and session affinity. It starts
 one Nano BF16 worker on one GPU, with persistent video sessions disabled.
 For those sessions, use [Dynamo with streaming](dynamo_with_streaming.md).
 
-For required worker environment variables, discovery, ports, and routing,
+For required worker environment variables, discovery, and proxy settings,
 see [Dynamo configuration](../configuration.md#dynamo-configuration), including
 [running NIM as a Dynamo worker](../configuration.md#run-nim-as-a-dynamo-worker).
 

@@ -312,36 +312,6 @@ NIM_DISCOVERY_BACKEND={"async_scheduling":true,"discovery_backend":"kubernetes",
 NIM_DISCOVERY_BACKEND={"async_scheduling":false,"discovery_backend":"kubernetes","enable_multimodal":true}
 ```
 
-### Dynamo discovery and routing
-
-These are the settings used by the supplied manifests, rather than upstream
-Dynamo defaults. Keep discovery and request transport consistent across the
-shared frontend and workers.
-
-| Setting | Cookbook value | Use |
-| --- | --- | --- |
-| `DYN_REQUEST_PLANE` | `tcp` | Request transport on the shared frontend and workers |
-| `DYN_SELF_HOST_METADATA` | `true` | Let workers serve their discovery metadata |
-| `DYN_SYSTEM_PORT` | `9090` | Worker system/metadata port; separate from the NIM HTTP and private frontend ports |
-| `NIM_INFERENCE_PROTOCOL` | `http` | Serve the worker's NIM API over HTTP |
-| `VLLM_EARLY_UUID_LOOKUPS` | `1` | Enable early multimodal cache lookups by media UUID |
-| `VLLM_UUID_AUTO_DERIVE` | `1` | Derive missing media UUIDs from media URLs for ordinary multimodal requests; streaming still disables the processor cache |
-| Frontend `--http-host`, `--http-port` | `0.0.0.0`, `8000` | Shared frontend's public listener |
-| Frontend `--discovery-backend` | `kubernetes` | Explicit in the streaming manifest; the regular frontend uses operator-provided discovery configuration |
-| Frontend `--dyn-chat-processor` | `dynamo` | Process Chat Completions through Dynamo |
-| Frontend `--router-mode` | `round-robin` | Distribute requests across workers |
-| Frontend `--router-session-affinity-ttl-secs` | `300` | Chat affinity lifetime in seconds; the environment alternative is `DYN_ROUTER_SESSION_AFFINITY_TTL_SECS`. Clients send `x-dynamo-session-id` to use affinity |
-
-In these Kubernetes deployments, let the Dynamo operator supply discovery and
-namespace identity, including `DYN_DISCOVERY_BACKEND`, `DYN_NAMESPACE`,
-`DYN_NAMESPACE_WORKER_SUFFIX`, and `DYN_NAMESPACE_PREFIX`. Do not hardcode its
-rollout-specific namespace values. Advanced manual worker launches can override
-the namespace and endpoint through `NIM_DYNAMO_ARGS`; endpoint resolution also
-honors `DYN_ENDPOINT`.
-
-See [Regular Dynamo deployment](dynamo/dynamo_deployment.md) for the NGC shared
-frontend and complete worker manifest.
-
 ### Dynamo streaming
 
 Set `NIM_ENABLE_STREAMING=1` alongside `NIM_DYNAMO_WORKER=true` on workers.
