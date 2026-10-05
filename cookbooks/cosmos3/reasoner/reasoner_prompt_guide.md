@@ -534,7 +534,7 @@ Media:
 User Prompt:
 
 ```text
-You are given the task "Move the pink bowl to the right". Specify the 2D trajectory your end effector should follow in pixel space. Return the trajectory coordinates in JSON format like this: {"point_2d": [x, y], "label": "gripper trajectory"}.
+You are given the task "Move the pink bowl to the right". Specify the 2D trajectory your end effector should follow using normalized 0-1000 coordinates per axis. Return the trajectory coordinates in JSON format like this: {"point_2d": [x, y], "label": "gripper trajectory"}.
 Answer the question using the following format:
 
 <think>
@@ -582,7 +582,7 @@ Media:
 User Prompt:
 
 ```text
-You are given the task "Put flower into the red bottle". Specify the 2D trajectory your end effector should follow in pixel space. Return the trajectory coordinates in JSON format like this: {"point_2d": [x, y], "label": "gripper trajectory"}.
+You are given the task "Put flower into the red bottle". Specify the 2D trajectory your end effector should follow using normalized 0-1000 coordinates per axis. Return the trajectory coordinates in JSON format like this: {"point_2d": [x, y], "label": "gripper trajectory"}.
 Answer the question using the following format:
 
 <think> Your reasoning. </think>
