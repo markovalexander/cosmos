@@ -345,10 +345,10 @@ The service supplies these values when omitted:
 When the operator leaves the image and video limits unset, the NIM does not
 override the runtime's modality limits. Use request-level `media_io_kwargs` for
 workload-specific video sampling; the example requests 4 FPS. Video-token
-pruning is disabled by default. Set a rate greater than `0` to enable the
-selected pruning method, which defaults to `vidcom2`; the catalog baseline sets
-`0` explicitly. Operator-wide media limits, preprocessing, and pruning are
-documented under
+pruning is enabled by default at a rate of `0.6`, using `vidcom2` unless another
+method is selected. Set `NIM_VIDEO_PRUNING_RATE=0` or
+`NIM_VIDEO_PRUNING_RATE=none` to disable pruning.
+Operator-wide media limits, preprocessing, and pruning are documented under
 [Reasoner configuration](configuration.md#reasoner-configuration). Verify
 additional request fields against the active `/openapi.json`.
 

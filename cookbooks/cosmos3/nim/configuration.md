@@ -200,7 +200,7 @@ systems](deployment.md#set-the-reasoner-memory-share-on-unified-memory-systems).
 | `NIM_MAX_VIDEOS_PER_PROMPT` | Unset | Optionally set a nonnegative video limit; when unset, do not override the runtime limit |
 | `NIM_MEDIA_IO_KWARGS` | Video backend `pynvvc` | Replace the complete operator-level media I/O object with a JSON object |
 | `NIM_MM_PROCESSOR_KWARGS` | Unset | Set operator-level multimodal processor options as a JSON object |
-| `NIM_VIDEO_PRUNING_RATE` | `0` (disabled) | Set video-token pruning from 0 through 1; values greater than 0 enable pruning |
+| `NIM_VIDEO_PRUNING_RATE` | `0.6` | Set video-token pruning from 0 through 1; `0`, `none`, `null`, or an empty value disable pruning |
 | `NIM_VIDEO_PRUNING_METHOD` | `vidcom2` | Select `vidcom2` or `evs` when pruning is enabled |
 
 Prefer request-level `media_io_kwargs` for one workload rather than changing the
