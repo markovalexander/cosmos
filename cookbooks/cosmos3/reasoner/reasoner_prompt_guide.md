@@ -381,11 +381,13 @@ Media:
 
 [View video](assets/assisted_task_next_action.mp4)
 
+The clip ends after the old cartridge has been placed aside.
+
 User Prompt:
 
 ```text
 This is the overall task that the agent is trying to complete: "The student exchanges the black ink cartridge of the printer."
-In the video, the agent is trying to follow the instruction (a single step out of many to complete the overall task): "place old ink_cartridge."
+The agent's previous completed task step was: "place old ink_cartridge."
 What should be the next action of the agent?
 Answer the question using the following format:
 <think>
@@ -394,16 +396,11 @@ Your reasoning.
 Write your final answer immediately after the </think> tag.
 ```
 
-Model Answer:
+Example final action:
 
-````text
-<think>
-Okay, let's break this down. The user is trying to replace the black ink cartridge in the printer. The current instruction they're following is "place old ink_cartridge," which seems a bit off because usually, you remove the old one first before placing a new one.
-
-Looking at the video, the hand was holding the old black ink cartridge and placed it on the printer's top. But the next logical step after removing the old cartridge would be to take out the new one from the holder. The printer has a holder with multiple cartridges (cyan, magenta, yellow, black), so the agent probably needs to pick the new black one next. Since the instruction was to place the old one, maybe they successfully did that, but the next action should be inserting the new cartridge. However, the user's instruction might be incorrect, so the agent might need to correct by taking the new cartridge. The correct next action should be to grab the new black ink cartridge from the holder.
-</think>
+```text
 grab new ink_cartridge
-````
+```
 
 ### Common Sense Reasoning
 
