@@ -26,12 +26,15 @@ image address, including its tag or digest. The image must include
 `/opt/nim/streaming/dynamo/`.
 
 The frontend runs `/opt/nim/.venv/bin/python -m streaming.dynamo.frontend`
-from `/opt/nim`. It serves REST sessions and forwards ordinary Chat Completions
-to Dynamo without loading a model or requesting a GPU. The stock
+from `/opt/nim`. It serves streaming configuration and REST sessions and forwards
+ordinary Chat Completions to Dynamo without loading a model or requesting a GPU. The stock
 `python3 -m dynamo.frontend` command does not expose the session routes.
 
 Workers start `/opt/nim/start_server.sh`: `NIM_DYNAMO_WORKER=true` and
 `NIM_ENABLE_STREAMING=1` select the streaming worker and its private frontend.
+The worker's `DYN_NAMESPACE_PREFIX` comes from the operator's pod label, allowing
+the private frontend to discover models in suffixed worker namespaces. The
+streaming pool still uses the separate `NIM_DYNAMO_STREAMING_ENDPOINT` setting.
 See [Dynamo worker configuration](../configuration.md#run-nim-as-a-dynamo-worker)
 and [Dynamo streaming configuration](../configuration.md#dynamo-streaming)
 for environment variables, defaults, precedence, and timeouts.
@@ -62,15 +65,46 @@ Follow the shared [readiness and port-forward checks](dynamo_deployment.md#check
 including setting `NIM_URL`. Check frontend and worker logs for
 `[Dynamo streaming]` messages confirming that the HTTP adapter and worker REST
 handlers attached. Chat Completions use the same
-[request example](dynamo_deployment.md#send-a-request).
+[request example](dynamo_deployment.md#send-a-request). For the Python Reasoner,
+Responses, and profile-inspection scripts, use the
+[worker NIM URL commands](dynamo_deployment.md#run-the-cookbook-clients).
 
 ## Stream video frames over REST
 
 Use the forwarded frontend at `NIM_URL`. Create a session, send one JPEG or
 PNG frame at a time, then delete the session. This Dynamo path supports raw
-image bodies and JSON `image_b64`. The `/v1/streaming/config` route is also
-unavailable, so the cookbook's `examples/streaming.py` client cannot be used
-here, even with `--transport rest`: its preflight requires that config route.
+image bodies and JSON `image_b64`. `GET /v1/streaming/config` returns the
+selected streaming worker's model and default retention/sampling settings:
+
+```bash
+curl -fsS "$NIM_URL/v1/streaming/config" | python3 -m json.tool
+```
+
+Use this config's `model` value when specifying a model for session creation.
+It can be a local model path rather than the public alias in `/v1/models`.
+
+The shared frontend exposes Dynamo's `/health` and `/v1/models`; NIM readiness,
+metadata, and manifest routes belong to each worker's NIM endpoint. A 404 from
+`/v1/health/ready` or `/v1/metadata` on the frontend does not establish that
+streaming is unavailable.
+
+From `cookbooks/cosmos3/nim`, using the [pinned client environment](../prerequisites.md#initialize-the-example-environment):
+
+```bash
+uv run python examples/streaming.py --backend dynamo --transport rest \
+  --nim-url "$NIM_URL" --fps 1 --max-frames 3
+```
+
+The client uses only the shared frontend. It checks for a registered `generate`
+worker at `/health`, a served model at `/v1/models`, and streaming configuration
+at `/v1/streaming/config`. It does not call worker metadata or manifest endpoints
+and needs no worker URLs or port forwards. Missing runtime metadata fields in
+older worker images do not block this mode. The client sends JSON/base64 frames
+and requires REST in Dynamo mode.
+
+These checks establish frontend discovery and streaming configuration, not the
+readiness or selected profile of every worker. Operators can inspect individual
+workers using the [deployment checks](dynamo_deployment.md#check-the-deployment).
 
 After the readiness checks above, try one local JPEG frame:
 
@@ -102,6 +136,16 @@ disabled on the worker; an existing session can also expire. A 503 can mean
 workers are loading, capacity is full, or the owning worker is unavailable.
 Sessions do not migrate after worker loss; create a new one. Do not
 automatically retry a frame after a timeout.
+
+## Other routes
+
+The adapter forwards ordinary HTTP requests to the bundled Dynamo frontend,
+including `POST /v1/responses`. Use `store=false` for Responses creation, as in
+the [Dynamo request example](dynamo_deployment.md#send-a-request). Creation does
+not establish support for stored-response retrieval, cancellation, background
+responses, or `previous_response_id`; those require separate backend storage
+support. NIM's `NIM_DISABLE_RESPONSES_ROUTE` controls the worker proxy's route,
+not the shared frontend's routes.
 
 ## Scale or stop
 

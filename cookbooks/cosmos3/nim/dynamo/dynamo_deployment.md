@@ -115,10 +115,69 @@ curl -fsS "$NIM_URL/v1/chat/completions" \
 See [Reasoning](../reasoning.md) for image/video request formats. The frontend
 uses Dynamo's API, including OpenAI `response_format`; NIM-specific aliases
 are handled by the worker's NIM proxy. The frontend does not expose NIM
-metadata. Some experimental worker images also omit `model_type` and
+metadata. The Python Reasoner and Responses examples require a worker NIM URL;
+see [Run the cookbook clients](#run-the-cookbook-clients). Older experimental
+worker images can also omit `model_type` and
 `inference_endpoint` from `/v1/metadata`, so cookbook clients requiring those
-fields cannot use them. Use the cURL example above and verify the Reasoner
-profile through `/v1/manifest`.
+fields reject those workers before inference. Use a worker image that exposes
+the same runtime identifiers and checkpoint label as standalone Reasoner. Verify
+the selected profile through the worker's `/v1/manifest`; for persistent video
+sessions, use the client's explicit [Dynamo mode](dynamo_with_streaming.md#stream-video-frames-over-rest),
+which uses only shared frontend endpoints and does not require worker metadata.
+
+The pinned frontend also accepts stateless Responses creation using the
+discovered model:
+
+```bash
+curl -fsS "$NIM_URL/v1/responses" \
+  -H 'Content-Type: application/json' \
+  -d "{\"model\":\"$MODEL\",\"input\":\"Describe how a robot can avoid obstacles.\",\"store\":false,\"max_output_tokens\":128}"
+```
+
+Successful creation with `store=false` does not imply support for persisted
+retrieval, cancellation, background responses, or `previous_response_id`.
+The worker NIM proxy also forwards Responses creation unless
+`NIM_DISABLE_RESPONSES_ROUTE=true`; that setting does not disable the shared
+frontend's own route. Check the selected frontend build and operator settings
+when a route is absent.
+
+## Run the cookbook clients
+
+`inspect_profile.py`, `reasoner.py`, and `reasoner_responses.py` use the worker's
+NIM metadata and model endpoints. These commands work with both deployment
+variants. Forward the worker's NIM port in a separate terminal:
+
+```bash
+kubectl -n cosmos3 port-forward pod/<reasoner-worker-pod> 8001:8000
+```
+
+From `cookbooks/cosmos3/nim`, using the
+[pinned client environment](../prerequisites.md#initialize-the-example-environment):
+
+```bash
+curl -fsS http://localhost:8001/v1/health/ready
+NIM_URL=http://localhost:8001 uv run python examples/inspect_profile.py
+NIM_URL=http://localhost:8001 uv run python examples/reasoner.py --case image_caption
+NIM_URL=http://localhost:8001 uv run python examples/reasoner_responses.py
+```
+
+These per-command assignments leave the shared frontend's `NIM_URL` unchanged.
+Use `--case all` to run the full Reasoner catalog. The
+[Dynamo streaming client](dynamo_with_streaming.md#stream-video-frames-over-rest)
+uses the shared frontend directly and needs no worker port-forward.
+
+Both deployment manifests set the worker container's `DYN_NAMESPACE_PREFIX`
+from its `nvidia.com/dynamo-namespace` pod label. The private frontend inherits
+this setting, so model discovery includes the operator's suffixed worker
+namespaces. Prefix matching takes precedence over the exact `DYN_NAMESPACE`
+filter and covers all worker pools under that deployment prefix.
+
+Check `/v1/models` on the interface receiving inference. A worker's NIM
+readiness check can succeed while its private frontend's model list is empty;
+in that case, check that `DYN_NAMESPACE_PREFIX` resolves to the deployment's
+namespace prefix in the worker container. A Responses
+`Model not found` error does not mean the Responses route is absent. Successful
+requests through the shared frontend do not validate the worker proxy's routes.
 
 ## Scale or stop
 

@@ -123,6 +123,11 @@ spec:
                   value: "{\"async_scheduling\":true,\"discovery_backend\":\"kubernetes\",\"enable_multimodal\":true}"
                 - name: DYN_REQUEST_PLANE
                   value: "tcp"
+                # The private frontend must discover operator-suffixed worker namespaces.
+                - name: DYN_NAMESPACE_PREFIX
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.labels['nvidia.com/dynamo-namespace']
                 - name: DYN_SELF_HOST_METADATA
                   value: "true"
                 - name: DYN_SYSTEM_PORT

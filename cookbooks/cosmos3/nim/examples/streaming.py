@@ -165,8 +165,7 @@ def run_rest(args: argparse.Namespace, create: dict) -> int:
         try:
             print(f"session {created['session_id']} on {created['model']}\n")
             for payload in iter_frames(args.video, args.fps, args.max_frames, args.loop):
-                # NIM's HTTP content-type validation rejects raw image bodies
-                # with 415 before they reach the streaming REST handler.
+                # JSON/base64 works through both standalone NIM and Dynamo.
                 response = client.post(
                     f"{session_url}/frame",
                     json={"image_b64": base64.b64encode(payload).decode("ascii")},
@@ -191,6 +190,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--nim-url", default=NIM_URL)
     parser.add_argument(
+        "--backend", choices=("nim", "dynamo"), default="nim",
+        help="Serving interface: NIM endpoint or shared Dynamo frontend (default: nim)",
+    )
+    parser.add_argument(
         "--transport", choices=("websocket", "rest"), default="websocket",
         help="Session API transport (default: websocket)",
     )
@@ -214,7 +217,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--frame-format", choices=("binary", "base64"),
-        help="Frame encoding: WebSocket defaults to binary; REST supports only base64",
+        help="Frame encoding: WebSocket defaults to binary; this client uses base64 for REST",
     )
     parser.add_argument(
         "--question",
@@ -223,10 +226,11 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    if args.backend == "dynamo" and args.transport != "rest":
+        parser.error("Dynamo supports REST streaming only; use --transport rest.")
     if args.transport == "rest" and args.frame_format == "binary":
         parser.error(
-            "REST binary frames are currently rejected with HTTP 415 by NIM. "
-            "Use --frame-format base64 or --transport websocket."
+            "This client sends REST frames as JSON/base64. Use --frame-format base64."
         )
     if args.frame_format is None:
         args.frame_format = "base64" if args.transport == "rest" else "binary"
@@ -241,12 +245,12 @@ def main() -> int:
         parser.error(f"video not found: {args.video}")
     try:
         _ws_url(args.nim_url)  # Both transports require an HTTP(S) base URL.
-        config = require_streaming(args.nim_url)
+        config = require_streaming(args.nim_url, backend=args.backend)
         create = session_request(args, config["model"])
         if args.transport == "rest":
             return run_rest(args, create)
         return asyncio.run(run_websocket(args, create))
-    except (requests.RequestException, RuntimeError, ValueError, OSError) as exc:
+    except (requests.RequestException, RuntimeError, TypeError, ValueError, OSError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
 

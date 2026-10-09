@@ -17,6 +17,14 @@ for clients that cannot maintain a WebSocket connection.
 an image with streaming support. See [Streaming video session settings](configuration.md#streaming-video-sessions)
 for enablement, capacity, and idle timeouts.
 
+For a shared Dynamo frontend, use the [Dynamo streaming deployment](dynamo/dynamo_with_streaming.md)
+and the client's `--backend dynamo --transport rest` mode. Dynamo supports REST
+sessions and config GET; WebSocket is unsupported. In this mode, the client
+checks only the shared frontend's `/health`, `/v1/models`, and
+`/v1/streaming/config`; it needs no worker URLs or private metadata access.
+Standalone NIM mode retains its readiness, runtime metadata, and selected-profile
+checks.
+
 For streaming, n-gram speculative decoding replaces DFlash because DFlash is
 currently not supported for streaming.
 
@@ -57,6 +65,7 @@ Useful options:
 | Flag | Use |
 | --- | --- |
 | `--nim-url` | Override the HTTP(S) base URL from `NIM_URL` |
+| `--backend` | `nim` (default) for a NIM endpoint; `dynamo` for a shared Dynamo frontend |
 | `--fps` | Sample the source video at this nominal rate; does not pace requests in wall-clock time |
 | `--max-frames` | Stop after this many sampled frames; default 30 |
 | `--max-video-segments` | Override retained context; omit to inherit the server policy |
@@ -70,10 +79,12 @@ supports `--frame-format binary` (the default) and `base64`. REST uses JSON
 with `image_b64` and defaults to `base64`; the client rejects an explicit
 `--transport rest --frame-format binary` before contacting the endpoint.
 
-**REST limitation:** raw image bodies currently fail with HTTP 415
+**Standalone NIM REST limitation:** raw image bodies currently fail with HTTP 415
 (`Unsupported media type`) at the NIM HTTP layer, even though the underlying
 streaming REST handler accepts binary images. Use JSON/base64 for REST, or
 WebSocket for binary frames. This does not affect WebSocket binary streaming.
+The Dynamo adapter and worker proxy support raw image bodies as well as
+JSON/base64; this example client uses JSON/base64 for REST on both backends.
 
 WebSocket disconnects release the session. REST mode attempts to delete it
 after success, an error, or Ctrl+C; it stops on the first error without
